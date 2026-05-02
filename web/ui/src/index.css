@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --primary: 158 75% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --ring: 158 75% 36%;
+    --radius: 0.6rem;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 96%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 96%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --primary: 152 76% 50%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 96%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 152 76% 50%;
+    --success-foreground: 222 47% 6%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 222 47% 6%;
+    --ring: 152 76% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .scroll-shadow {
+    mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  }
+}
+
+.markdown h1, .markdown h2, .markdown h3 { @apply font-semibold; }
+.markdown h1 { @apply text-xl mt-4 mb-2; }
+.markdown h2 { @apply text-lg mt-4 mb-2; }
+.markdown h3 { @apply text-base mt-3 mb-1.5; }
+.markdown p { @apply text-sm leading-relaxed mb-2 text-muted-foreground; }
+.markdown ul { @apply list-disc list-inside text-sm text-muted-foreground my-2; }
+.markdown ol { @apply list-decimal list-inside text-sm text-muted-foreground my-2; }
+.markdown code { @apply px-1 py-0.5 rounded bg-muted text-foreground text-xs; }
+.markdown pre { @apply p-3 rounded-md bg-muted/60 text-xs overflow-x-auto my-2; }
+.markdown strong { @apply font-semibold text-foreground; }
+.markdown blockquote { @apply border-l-2 border-border pl-3 my-2 text-muted-foreground italic; }
