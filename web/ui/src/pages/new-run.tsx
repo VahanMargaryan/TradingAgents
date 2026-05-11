@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, Loader2, PlayCircle } from "lucide-react";
 
 import { api } from "@/lib/api";
+import type { ModelOption, ProviderCatalog } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -75,7 +76,35 @@ export function NewRunPage() {
   }, [configQuery.data]);
 
   const providers = modelsQuery.data?.providers ?? [];
-  const providerCatalog = provider ? modelsQuery.data?.catalog[provider] : undefined;
+  const staticCatalog = provider
+    ? modelsQuery.data?.catalog[provider]
+    : undefined;
+
+  const isOllama = provider === "ollama";
+  const ollamaBackend = (effective.backend_url as string | undefined) ?? "";
+  const ollamaQuery = useQuery({
+    queryKey: ["ollama-models", ollamaBackend],
+    queryFn: () => api.ollamaModels(ollamaBackend || undefined),
+    enabled: isOllama && overrideModels,
+    refetchOnWindowFocus: false,
+  });
+
+  const providerCatalog: ProviderCatalog | undefined = useMemo(() => {
+    if (!isOllama) return staticCatalog;
+    const live: ModelOption[] = (ollamaQuery.data?.models ?? []).map((m) => ({
+      label: m.label,
+      value: m.value,
+    }));
+    const merge = (extras: ModelOption[] | undefined): ModelOption[] => {
+      const seen = new Set(live.map((o) => o.value));
+      const tail = (extras ?? []).filter((o) => !seen.has(o.value));
+      return [...live, ...tail];
+    };
+    return {
+      quick: merge(staticCatalog?.quick),
+      deep: merge(staticCatalog?.deep),
+    };
+  }, [isOllama, ollamaQuery.data, staticCatalog]);
 
   const createMutation = useMutation({
     mutationFn: api.createRun,

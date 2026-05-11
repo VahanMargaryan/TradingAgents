@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -243,6 +246,52 @@ def list_models() -> Dict[str, Any]:
         "catalog": catalog,
         "provider_keys_set": _provider_key_status(),
     }
+
+
+def _ollama_root(base_url: Optional[str]) -> str:
+    """Strip any path (e.g. ``/v1``) so we can reach Ollama's native API."""
+    candidate = (base_url or "").strip() or "http://localhost:11434"
+    parsed = urlparse(candidate if "://" in candidate else f"http://{candidate}")
+    return urlunparse((parsed.scheme or "http", parsed.netloc or parsed.path, "", "", "", ""))
+
+
+@app.get("/api/ollama/models")
+def list_ollama_models(
+    backend_url: Optional[str] = Query(default=None),
+) -> Dict[str, Any]:
+    """Return models installed on the configured Ollama server."""
+    base = backend_url or _load_config().get("backend_url") or "http://localhost:11434"
+    root = _ollama_root(base)
+    tags_url = f"{root.rstrip('/')}/api/tags"
+    try:
+        req = urllib.request.Request(tags_url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+        return {"server": root, "reachable": False, "error": str(exc), "models": []}
+    except (json.JSONDecodeError, ValueError) as exc:
+        return {"server": root, "reachable": False, "error": f"Invalid response: {exc}", "models": []}
+
+    models: List[Dict[str, Any]] = []
+    for entry in payload.get("models", []) or []:
+        name = entry.get("name") or entry.get("model")
+        if not name:
+            continue
+        size_bytes = entry.get("size")
+        details = entry.get("details") or {}
+        param_size = details.get("parameter_size")
+        suffix_parts = [p for p in (param_size, details.get("quantization_level")) if p]
+        suffix = f" ({', '.join(suffix_parts)})" if suffix_parts else ""
+        models.append({
+            "label": f"{name}{suffix}",
+            "value": name,
+            "size_bytes": size_bytes,
+            "parameter_size": param_size,
+            "quantization_level": details.get("quantization_level"),
+            "family": details.get("family"),
+        })
+    models.sort(key=lambda m: m["value"])
+    return {"server": root, "reachable": True, "models": models}
 
 
 @app.get("/api/config")

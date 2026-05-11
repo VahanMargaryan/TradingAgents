@@ -149,7 +149,15 @@ class OpenAIClient(BaseLLMClient):
         # provider default so users can route through their own gateway.
         if self.provider in _PROVIDER_CONFIG:
             default_base, api_key_env = _PROVIDER_CONFIG[self.provider]
-            llm_kwargs["base_url"] = self.base_url or default_base
+            base_url = self.base_url or default_base
+            # Ollama's OpenAI-compatible gateway lives under /v1. Users often
+            # paste the bare host (http://host:11434/) — append /v1 so requests
+            # don't 404 against the native API root.
+            if self.provider == "ollama" and base_url:
+                stripped = base_url.rstrip("/")
+                if not stripped.endswith("/v1") and "/v1/" not in f"{stripped}/":
+                    base_url = f"{stripped}/v1"
+            llm_kwargs["base_url"] = base_url
             if api_key_env:
                 api_key = os.environ.get(api_key_env)
                 if api_key:

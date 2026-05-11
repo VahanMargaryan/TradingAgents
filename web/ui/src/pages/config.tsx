@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Save } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Save,
+} from "lucide-react";
 
 import { api } from "@/lib/api";
+import type { ModelOption, ProviderCatalog } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -70,10 +77,36 @@ export function ConfigPage() {
   }, [configQuery.data]);
 
   const providers = modelsQuery.data?.providers ?? [];
-  const providerCatalog = form.llm_provider
+  const staticCatalog = form.llm_provider
     ? modelsQuery.data?.catalog[form.llm_provider]
     : undefined;
   const providerKeys = modelsQuery.data?.provider_keys_set ?? {};
+
+  const isOllama = form.llm_provider === "ollama";
+  const ollamaQuery = useQuery({
+    queryKey: ["ollama-models", form.backend_url ?? ""],
+    queryFn: () =>
+      api.ollamaModels(form.backend_url ? form.backend_url : undefined),
+    enabled: isOllama,
+    refetchOnWindowFocus: false,
+  });
+
+  const providerCatalog: ProviderCatalog | undefined = useMemo(() => {
+    if (!isOllama) return staticCatalog;
+    const live: ModelOption[] = (ollamaQuery.data?.models ?? []).map((m) => ({
+      label: m.label,
+      value: m.value,
+    }));
+    const merge = (extras: ModelOption[] | undefined): ModelOption[] => {
+      const seen = new Set(live.map((o) => o.value));
+      const tail = (extras ?? []).filter((o) => !seen.has(o.value));
+      return [...live, ...tail];
+    };
+    return {
+      quick: merge(staticCatalog?.quick),
+      deep: merge(staticCatalog?.deep),
+    };
+  }, [isOllama, ollamaQuery.data, staticCatalog]);
 
   const saveMutation = useMutation({
     mutationFn: (overrides: Record<string, unknown>) =>
@@ -212,13 +245,106 @@ export function ConfigPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="backend-url">Custom backend URL (optional)</Label>
-              <Input
-                id="backend-url"
-                placeholder="https://api.example.com/v1"
-                value={form.backend_url ?? ""}
-                onChange={(e) => update("backend_url", e.target.value)}
-              />
+              <Label htmlFor="backend-url">
+                {isOllama
+                  ? "Ollama server URL"
+                  : "Custom backend URL (optional)"}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="backend-url"
+                  placeholder={
+                    isOllama
+                      ? "http://localhost:11434/v1"
+                      : "https://api.example.com/v1"
+                  }
+                  value={form.backend_url ?? ""}
+                  onChange={(e) => update("backend_url", e.target.value)}
+                />
+                {isOllama && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => ollamaQuery.refetch()}
+                    disabled={ollamaQuery.isFetching}
+                    aria-label="Refresh Ollama models"
+                  >
+                    {ollamaQuery.isFetching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Refresh
+                  </Button>
+                )}
+              </div>
+              {isOllama && (
+                <p className="text-xs text-muted-foreground">
+                  Trailing <code>/v1</code> is added automatically — bare
+                  hosts like <code>http://host:11434</code> work too.
+                </p>
+              )}
+              {isOllama && ollamaQuery.data && (
+                <p
+                  className={
+                    ollamaQuery.data.reachable
+                      ? "text-xs text-success flex items-center gap-1"
+                      : "text-xs text-destructive flex items-start gap-1"
+                  }
+                >
+                  {ollamaQuery.data.reachable ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Connected to {ollamaQuery.data.server} ·{" "}
+                      {ollamaQuery.data.models.length} model
+                      {ollamaQuery.data.models.length === 1 ? "" : "s"} detected
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                      <span>
+                        Cannot reach {ollamaQuery.data.server}:{" "}
+                        {ollamaQuery.data.error ?? "unreachable"}
+                      </span>
+                    </>
+                  )}
+                </p>
+              )}
+              {isOllama &&
+                ollamaQuery.data?.reachable &&
+                form.quick_think_llm &&
+                !ollamaQuery.data.models.some(
+                  (m) => m.value === form.quick_think_llm,
+                ) && (
+                  <p className="text-xs text-warning flex items-start gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                    <span>
+                      Quick model <code>{form.quick_think_llm}</code> is not
+                      installed on this server — pull it on the host or pick a
+                      detected model.
+                    </span>
+                  </p>
+                )}
+              {isOllama &&
+                ollamaQuery.data?.reachable &&
+                form.deep_think_llm &&
+                !ollamaQuery.data.models.some(
+                  (m) => m.value === form.deep_think_llm,
+                ) && (
+                  <p className="text-xs text-warning flex items-start gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                    <span>
+                      Deep model <code>{form.deep_think_llm}</code> is not
+                      installed on this server — pull it on the host or pick a
+                      detected model.
+                    </span>
+                  </p>
+                )}
+              {isOllama && !ollamaQuery.data && ollamaQuery.isFetching && (
+                <p className="text-xs text-muted-foreground">
+                  Querying Ollama server…
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
